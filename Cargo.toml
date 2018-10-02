@@ -1,7 +1,11 @@
 [package]
 name = "kg-symbol"
 version = "0.1.0"
+description = "Atomic strings in Rust"
 authors = ["Jakub Chłapiński <jakub.chlapinski@kodegenix.pl>"]
+readme = "README.md"
+license = "MIT"
+repository = "https://gihub.com/Kodegenix/kg-symbol"
 
 [dependencies]
 lazy_static = "1.1"
