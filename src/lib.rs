@@ -1,4 +1,4 @@
-#![feature(box_syntax, integer_atomics, specialization, allocator_api)]
+#![feature(integer_atomics, allocator_api)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -14,13 +14,13 @@ use std::borrow::{Cow, Borrow};
 use std::ptr::NonNull;
 use std::alloc::{Layout, alloc, dealloc, handle_alloc_error};
 use std::collections::HashSet;
-use std::sync::RwLock;
+use std::sync::Mutex;
 use std::sync::atomic::AtomicU32;
 use std::hash::{Hash, Hasher};
 
 
 lazy_static!{
-    static ref SYMBOLS: RwLock<HashSet<Symbol>> = RwLock::new(HashSet::new());
+    static ref SYMBOLS: Mutex<HashSet<Symbol>> = Mutex::new(HashSet::new());
 }
 
 
@@ -51,37 +51,32 @@ pub struct Symbol(NonNull<u8>);
 
 impl Symbol {
     pub fn new<S: AsRef<str>>(value: S) -> Symbol {
+        let ref mut symbols = *SYMBOLS.lock().unwrap();
         {
-            let set = SYMBOLS.read().unwrap();
-            if let Some(s) = set.get(value.as_ref()) {
+            if let Some(s) = symbols.get(value.as_ref()) {
                 return s.clone();
             }
         }
-        {
-            let mut set = SYMBOLS.write().unwrap();
-            let s = {
-                let s = value.as_ref();
-                let (layout, offset) = layout_offset(s.len());
-                let data = unsafe {
-                    let data = alloc(layout);
-                    if data.is_null() {
-                        handle_alloc_error(layout);
-                    }
-                    let data_ptr = data.offset(offset as isize);
-                    let mut hdr_ptr = std::mem::transmute::<*mut u8, &mut Header>(data);
-                    *hdr_ptr = Header {
-                        ref_count: AtomicU32::new(0),
-                        ptr: NonNull::new_unchecked(data_ptr),
-                        len: s.len(),
-                    };
-                    std::ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, s.len());
-                    NonNull::new_unchecked(data)
-                };
-                Symbol(data)
+        let s = value.as_ref();
+        let (layout, offset) = layout_offset(s.len());
+        let data = unsafe {
+            let data = alloc(layout);
+            if data.is_null() {
+                handle_alloc_error(layout);
+            }
+            let data_ptr = data.offset(offset as isize);
+            let mut hdr_ptr = std::mem::transmute::<*mut u8, &mut Header>(data);
+            *hdr_ptr = Header {
+                ref_count: AtomicU32::new(0),
+                ptr: NonNull::new_unchecked(data_ptr),
+                len: s.len(),
             };
-            set.insert(s.clone());
-            s
-        }
+            std::ptr::copy_nonoverlapping(s.as_ptr(), data_ptr, s.len());
+            NonNull::new_unchecked(data)
+        };
+        let s = Symbol(data);
+        symbols.insert(s.clone());
+        s
     }
 
     #[inline(always)]
@@ -104,7 +99,7 @@ impl Symbol {
 
     #[cfg(test)]
     pub fn print_all() {
-        println!("{:#?}", *SYMBOLS.read().unwrap())
+        println!("{:#?}", *SYMBOLS.lock().unwrap())
     }
 }
 
@@ -112,8 +107,7 @@ impl Drop for Symbol {
     fn drop(&mut self) {
         let ref_count = self.dec_ref_count();
         if ref_count == 1 {
-            let mut set = SYMBOLS.write().unwrap();
-            set.remove(self.as_ref());
+            SYMBOLS.lock().unwrap().remove(self.as_ref());
         } else if ref_count == 0 {
             let (layout, _) = layout_offset(self.header().len);
             unsafe {
@@ -317,7 +311,7 @@ mod tests {
 
     fn lock<'a>() -> MutexGuard<'a, ()> {
         let lock = LOCK.lock().unwrap();
-        debug_assert_eq!(SYMBOLS.read().unwrap().len(), 0);
+        debug_assert_eq!(SYMBOLS.lock().unwrap().len(), 0);
         lock
     }
 
@@ -345,10 +339,10 @@ mod tests {
             let s3 = Symbol::from("aaaa");
             assert_eq!(s2.ref_count(), 2);
             assert_eq!(s3.ref_count(), 1);
-            assert_eq!(SYMBOLS.read().unwrap().len(), 2);
+            assert_eq!(SYMBOLS.lock().unwrap().len(), 2);
         }
 
-        assert_eq!(SYMBOLS.read().unwrap().len(), 0);
+        assert_eq!(SYMBOLS.lock().unwrap().len(), 0);
     }
 
     #[test]
