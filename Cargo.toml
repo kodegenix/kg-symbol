@@ -5,7 +5,7 @@ description = "Atomic strings in Rust"
 authors = ["Jakub Chłapiński <jakub.chlapinski@kodegenix.pl>"]
 readme = "README.md"
 license = "MIT"
-repository = "https://gihub.com/Kodegenix/kg-symbol"
+repository = "https://gihub.com/Kodegenix/kg-symbol.rs"
 
 [dependencies]
 lazy_static = "1.1"
