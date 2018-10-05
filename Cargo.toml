@@ -1,6 +1,6 @@
 [package]
 name = "kg-symbol"
-version = "0.1.2"
+version = "0.1.3"
 description = "Atomic strings in Rust"
 authors = ["Jakub Chłapiński <jakub.chlapinski@kodegenix.pl>"]
 readme = "README.md"
