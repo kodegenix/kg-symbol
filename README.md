@@ -9,7 +9,19 @@ This crate provides an `Symbol` type representing reference to an interned strin
 Since there can only exist one Symbol with a given name, symbols equality can be established simply from pointer comparison.
 
 ## License
-Code licensed under [MIT License](https://github.com/Kodegenix/kg-symbol/blob/master/LICENSE)
 
-## Authors
-Kodegenix Sp. z o.o. [www.kodegenix.pl](http://www.kodegenix.pl)
+Licensed under either of
+* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any
+additional terms or conditions.
+
+## Copyright
+
+Copyright (c) 2018 Kodegenix Sp. z o.o. [http://www.kodegenix.pl](http://www.kodegenix.pl)
