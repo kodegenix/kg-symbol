@@ -3,9 +3,9 @@
 [![Latest Version](https://img.shields.io/crates/v/kg-symbol.svg)](https://crates.io/crates/kg-symbol)
 [![Documentation](https://docs.rs/kg-symbol/badge.svg)](https://docs.rs/kg-symbol)
 
-Atomic strings in Rust
+Atomic strings in Rust.
 
-This crate provides an `Symbol` type representing reference to an interned string. 
+This crate provides a `Symbol` type representing reference to an interned string. 
 Since there can only exist one Symbol with a given name, symbols equality can be established simply from pointer comparison.
 
 ## License
