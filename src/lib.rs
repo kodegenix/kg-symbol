@@ -80,23 +80,9 @@ impl Symbol {
         unsafe { std::mem::transmute::<NonNull<u8>, &Header>(self.0) }
     }
 
+    #[cfg(test)]
     fn ref_count(&self) -> u32 {
         self.header().ref_count.load(std::sync::atomic::Ordering::SeqCst)
-    }
-
-    #[inline(never)]
-    fn remove(&self) {
-        let mut symbols = SYMBOLS.lock();
-        // need to recheck refcount after locking SYMBOLS, since a new reference might have been
-        // created in Symbol::new() from another thread
-        if self.ref_count() == 0 {
-            let s = symbols.take(self.as_ref()).unwrap();
-            std::mem::forget(s);
-            let (layout, _) = layout_offset(self.header().len);
-            unsafe {
-                Global.dealloc(self.0, layout);
-            }
-        }
     }
 
     #[cfg(test)]
@@ -108,8 +94,14 @@ impl Symbol {
 impl Drop for Symbol {
     #[inline]
     fn drop(&mut self) {
+        let mut symbols = SYMBOLS.lock();
         if self.header().ref_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) == 1 {
-            self.remove();
+            let s = symbols.take(self.as_ref()).unwrap();
+            std::mem::forget(s);
+            let (layout, _) = layout_offset(self.header().len);
+            unsafe {
+                Global.dealloc(self.0, layout);
+            }
         }
     }
 }
