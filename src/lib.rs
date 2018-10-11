@@ -15,18 +15,22 @@ use std::borrow::{Cow, Borrow};
 use std::ptr::NonNull;
 use std::alloc::{Layout, Alloc, Global, handle_alloc_error};
 use std::collections::HashSet;
-use std::sync::atomic::AtomicU32;
+use std::sync::atomic::AtomicUsize;
 use std::hash::{Hash, Hasher};
 use parking_lot::Mutex;
 
 
 lazy_static!{
-    static ref SYMBOLS: Mutex<HashSet<SymbolPtr>> = Mutex::new(HashSet::new());
+    static ref SYMBOLS: Mutex<HashSet<SymbolPtr>> = {
+        let mut set = HashSet::new();
+        set.insert(SymbolPtr::alloc("", true));
+        Mutex::new(set)
+    };
 }
 
 
 struct Header {
-    ref_count: AtomicU32,
+    ref_count: AtomicUsize,
     ptr: NonNull<u8>,
     len: usize,
 }
@@ -48,18 +52,18 @@ fn layout_offset(len: usize) -> (Layout, usize) {
 }
 
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 struct SymbolPtr(NonNull<u8>);
 
 impl SymbolPtr {
-    fn alloc(value: &str) -> SymbolPtr {
+    fn alloc(value: &str, persistent: bool) -> SymbolPtr {
         let (layout, offset) = layout_offset(value.len());
         let p = unsafe {
             let data = Global.alloc(layout).unwrap_or_else(|_| handle_alloc_error(layout));
             let str_ptr = data.as_ptr().offset(offset as isize);
             let hdr_ptr = std::mem::transmute::<NonNull<u8>, &mut Header>(data);
             *hdr_ptr = Header {
-                ref_count: AtomicU32::new(1),
+                ref_count: AtomicUsize::new(if persistent { 2 } else { 1 }),
                 ptr: NonNull::new_unchecked(str_ptr),
                 len: value.len(),
             };
@@ -69,7 +73,8 @@ impl SymbolPtr {
         SymbolPtr(p)
     }
 
-    fn destroy(&self) {
+    #[inline]
+    fn destroy(&mut self) {
         let (layout, _) = layout_offset(self.header().len);
         unsafe {
             Global.dealloc(self.0, layout);
@@ -79,6 +84,11 @@ impl SymbolPtr {
     #[inline(always)]
     fn header(&self) -> &Header {
         unsafe { std::mem::transmute::<NonNull<u8>, &Header>(self.0) }
+    }
+
+    #[inline(always)]
+    fn as_ptr(&self) -> *mut u8 {
+        self.0.as_ptr()
     }
 }
 
@@ -94,9 +104,17 @@ impl Hash for SymbolPtr {
     }
 }
 
+impl PartialEq for SymbolPtr {
+    fn eq(&self, other: &SymbolPtr) -> bool {
+        self.header().as_ref() == other.header().as_ref()
+    }
+}
+
+impl Eq for SymbolPtr {}
+
 impl PartialEq<str> for SymbolPtr {
     fn eq(&self, other: &str) -> bool {
-        self.header().as_ref().eq(other)
+        self.header().as_ref() == other
     }
 }
 
@@ -114,43 +132,55 @@ unsafe impl Sync for SymbolPtr {}
 pub struct Symbol(SymbolPtr);
 
 impl Symbol {
+    #[inline(never)]
     pub fn new<S: AsRef<str>>(value: S) -> Symbol {
         let mut symbols = SYMBOLS.lock();
         let value = value.as_ref();
         if let Some(s) = symbols.get(value).cloned() {
-            if s.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) > 0 {
+            if s.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) > 0 {
                 return Symbol(s);
             }
         }
-        let p = SymbolPtr::alloc(value);
-        symbols.insert(p);
+        let p = SymbolPtr::alloc(value, false);
+        symbols.replace(p);
         Symbol(p)
     }
 
+    #[inline(never)]
+    fn destroy(&mut self) {
+        let mut symbols = SYMBOLS.lock();
+        if let Some(s) = symbols.get(self.as_ref()).cloned() {
+            if s.as_ptr() == self.0.as_ptr() {
+                symbols.remove(self.as_ref());
+            }
+        }
+
+        self.0.destroy();
+    }
+
     #[cfg(test)]
-    fn ref_count(&self) -> u32 {
+    fn ref_count(&self) -> usize {
         self.0.header().ref_count.load(std::sync::atomic::Ordering::SeqCst)
     }
 }
 
 impl Drop for Symbol {
+    #[inline(always)]
     fn drop(&mut self) {
-        if self.0.header().ref_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) == 1 {
-                let mut symbols = SYMBOLS.lock();
-                let value = self.as_ref();
-                if let Some(s) = symbols.get(value).cloned() {
-                    if s == self.0 {
-                        symbols.remove(value);
-                    }
-                }
-            self.0.destroy();
+        if self.0.header().ref_count.fetch_sub(1, std::sync::atomic::Ordering::Release) != 1 {
+            return;
         }
+
+        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
+
+        self.destroy();
     }
 }
 
 impl Clone for Symbol {
+    #[inline(always)]
     fn clone(&self) -> Self {
-        self.0.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.0.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Symbol(self.0)
     }
 }
@@ -177,7 +207,7 @@ impl Borrow<str> for Symbol {
 
 impl PartialEq for Symbol {
     fn eq(&self, other: &Symbol) -> bool {
-        self.0 == other.0
+        self.0.as_ptr() == other.0.as_ptr()
     }
 }
 
@@ -340,7 +370,7 @@ mod tests {
 
     fn lock<'a>() -> MutexGuard<'a, ()> {
         let lock = LOCK.lock();
-        debug_assert_eq!(SYMBOLS.lock().len(), 0);
+        debug_assert_eq!(SYMBOLS.lock().len(), 1);
         lock
     }
 
@@ -368,10 +398,10 @@ mod tests {
             let s3 = Symbol::from("aaaa");
             assert_eq!(s2.ref_count(), 2);
             assert_eq!(s3.ref_count(), 1);
-            assert_eq!(SYMBOLS.lock().len(), 2);
+            assert_eq!(SYMBOLS.lock().len(), 3);
         }
 
-        assert_eq!(SYMBOLS.lock().len(), 0);
+        assert_eq!(SYMBOLS.lock().len(), 1);
     }
 
     #[test]
@@ -385,7 +415,7 @@ mod tests {
         map.insert("two".into(), 2);
         map.insert("three".into(), 3);
 
-        let three = Symbol::from("three");
+        let three = Symbol::new("three");
 
         assert_eq!(map.get("one"), Some(&1));
         assert_eq!(map.get("two"), Some(&2));
