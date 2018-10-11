@@ -21,7 +21,7 @@ use parking_lot::Mutex;
 
 
 lazy_static!{
-    static ref SYMBOLS: Mutex<HashSet<Symbol>> = Mutex::new(HashSet::new());
+    static ref SYMBOLS: Mutex<HashSet<SymbolPtr>> = Mutex::new(HashSet::new());
 }
 
 
@@ -48,16 +48,11 @@ fn layout_offset(len: usize) -> (Layout, usize) {
 }
 
 
-pub struct Symbol(NonNull<u8>);
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct SymbolPtr(NonNull<u8>);
 
-impl Symbol {
-    pub fn new<S: AsRef<str>>(value: S) -> Symbol {
-        let mut symbols = SYMBOLS.lock();
-        let value = value.as_ref();
-        if let Some(s) = symbols.get(value) {
-            s.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            return Symbol(s.0);
-        }
+impl SymbolPtr {
+    fn alloc(value: &str) -> SymbolPtr {
         let (layout, offset) = layout_offset(value.len());
         let p = unsafe {
             let data = Global.alloc(layout).unwrap_or_else(|_| handle_alloc_error(layout));
@@ -71,51 +66,98 @@ impl Symbol {
             std::ptr::copy_nonoverlapping(value.as_ptr(), str_ptr, value.len());
             data
         };
-        symbols.insert(Symbol(p));
-        Symbol(p)
+        SymbolPtr(p)
+    }
+
+    fn destroy(&self) {
+        let (layout, _) = layout_offset(self.header().len);
+        unsafe {
+            Global.dealloc(self.0, layout);
+        }
     }
 
     #[inline(always)]
     fn header(&self) -> &Header {
         unsafe { std::mem::transmute::<NonNull<u8>, &Header>(self.0) }
     }
+}
 
-    #[cfg(test)]
-    fn ref_count(&self) -> u32 {
-        self.header().ref_count.load(std::sync::atomic::Ordering::SeqCst)
+impl Borrow<str> for SymbolPtr {
+    fn borrow(&self) -> &str {
+        self.header().as_ref()
+    }
+}
+
+impl Hash for SymbolPtr {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.header().as_ref().hash(state)
+    }
+}
+
+impl PartialEq<str> for SymbolPtr {
+    fn eq(&self, other: &str) -> bool {
+        self.header().as_ref().eq(other)
+    }
+}
+
+impl std::fmt::Debug for SymbolPtr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Debug::fmt(self.header().as_ref(), f)
+    }
+}
+
+unsafe impl Send for SymbolPtr {}
+
+unsafe impl Sync for SymbolPtr {}
+
+
+pub struct Symbol(SymbolPtr);
+
+impl Symbol {
+    pub fn new<S: AsRef<str>>(value: S) -> Symbol {
+        let mut symbols = SYMBOLS.lock();
+        let value = value.as_ref();
+        if let Some(s) = symbols.get(value).cloned() {
+            if s.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst) > 0 {
+                return Symbol(s);
+            }
+        }
+        let p = SymbolPtr::alloc(value);
+        symbols.insert(p);
+        Symbol(p)
     }
 
     #[cfg(test)]
-    pub fn print_all() {
-        println!("{:#?}", *SYMBOLS.lock())
+    fn ref_count(&self) -> u32 {
+        self.0.header().ref_count.load(std::sync::atomic::Ordering::SeqCst)
     }
 }
 
 impl Drop for Symbol {
-    #[inline]
     fn drop(&mut self) {
-        let mut symbols = SYMBOLS.lock();
-        if self.header().ref_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) == 1 {
-            let s = symbols.take(self.as_ref()).unwrap();
-            std::mem::forget(s);
-            let (layout, _) = layout_offset(self.header().len);
-            unsafe {
-                Global.dealloc(self.0, layout);
-            }
+        if self.0.header().ref_count.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) == 1 {
+                let mut symbols = SYMBOLS.lock();
+                let value = self.as_ref();
+                if let Some(s) = symbols.get(value).cloned() {
+                    if s == self.0 {
+                        symbols.remove(value);
+                    }
+                }
+            self.0.destroy();
         }
     }
 }
 
 impl Clone for Symbol {
     fn clone(&self) -> Self {
-        self.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.0.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Symbol(self.0)
     }
 }
 
 impl AsRef<str> for Symbol {
     fn as_ref(&self) -> &str {
-        self.header().as_ref()
+        self.0.header().as_ref()
     }
 }
 
@@ -142,7 +184,7 @@ impl PartialEq for Symbol {
 impl Eq for Symbol {}
 
 impl PartialOrd for Symbol {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
@@ -267,7 +309,7 @@ impl<'a, 'b> From<&'b Cow<'a, str>> for Symbol {
 
 impl heapsize::HeapSizeOf for Symbol {
     fn heap_size_of_children(&self) -> usize {
-        layout_offset(self.header().len).0.size()
+        layout_offset(self.0.header().len).0.size()
     }
 }
 
@@ -311,9 +353,9 @@ mod tests {
         let s3 = s1.clone();
         let s4 = Symbol::from("aaaa");
 
-        assert_eq!(s1.0.as_ptr(), s2.0.as_ptr());
-        assert_eq!(s1.0.as_ptr(), s3.0.as_ptr());
-        assert_ne!(s1.0.as_ptr(), s4.0.as_ptr());
+        assert_eq!(s1.0, s2.0);
+        assert_eq!(s1.0, s3.0);
+        assert_ne!(s1.0, s4.0);
     }
 
     #[test]
