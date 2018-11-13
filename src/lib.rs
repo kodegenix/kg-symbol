@@ -1,4 +1,4 @@
-#![feature(integer_atomics, allocator_api)]
+#![feature(integer_atomics, allocator_api, alloc_layout_extra)]
 
 #[macro_use]
 extern crate lazy_static;
