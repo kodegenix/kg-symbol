@@ -3,31 +3,29 @@
 #[macro_use]
 extern crate lazy_static;
 extern crate heapsize;
-extern crate serde;
 extern crate parking_lot;
+extern crate serde;
 
 #[cfg(test)]
 extern crate serde_json;
 
-use std::cmp::Ordering;
-use std::ops::Deref;
-use std::borrow::{Cow, Borrow};
-use std::ptr::NonNull;
-use std::alloc::{Layout, Alloc, Global, handle_alloc_error};
-use std::collections::HashSet;
-use std::sync::atomic::AtomicUsize;
-use std::hash::{Hash, Hasher};
 use parking_lot::Mutex;
+use std::alloc::{handle_alloc_error, Alloc, Global, Layout};
+use std::borrow::{Borrow, Cow};
+use std::cmp::Ordering;
+use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
+use std::ops::Deref;
+use std::ptr::NonNull;
+use std::sync::atomic::AtomicUsize;
 
-
-lazy_static!{
+lazy_static! {
     static ref SYMBOLS: Mutex<HashSet<SymbolPtr>> = {
         let mut set = HashSet::new();
         set.insert(SymbolPtr::alloc("", true));
         Mutex::new(set)
     };
 }
-
 
 struct Header {
     ref_count: AtomicUsize,
@@ -43,14 +41,14 @@ impl AsRef<str> for Header {
     }
 }
 
-
 #[inline]
 fn layout_offset(len: usize) -> (Layout, usize) {
     unsafe {
-        Layout::new::<Header>().extend(Layout::from_size_align_unchecked(len, 1)).unwrap()
+        Layout::new::<Header>()
+            .extend(Layout::from_size_align_unchecked(len, 1))
+            .unwrap()
     }
 }
-
 
 #[derive(Clone, Copy)]
 struct SymbolPtr(NonNull<u8>);
@@ -59,7 +57,9 @@ impl SymbolPtr {
     fn alloc(value: &str, persistent: bool) -> SymbolPtr {
         let (layout, offset) = layout_offset(value.len());
         let p = unsafe {
-            let data = Global.alloc(layout).unwrap_or_else(|_| handle_alloc_error(layout));
+            let data = Global
+                .alloc(layout)
+                .unwrap_or_else(|_| handle_alloc_error(layout));
             let str_ptr = data.as_ptr().offset(offset as isize);
             let hdr_ptr = std::mem::transmute::<NonNull<u8>, &mut Header>(data);
             *hdr_ptr = Header {
@@ -128,7 +128,6 @@ unsafe impl Send for SymbolPtr {}
 
 unsafe impl Sync for SymbolPtr {}
 
-
 pub struct Symbol(SymbolPtr);
 
 impl Symbol {
@@ -137,7 +136,11 @@ impl Symbol {
         let mut symbols = SYMBOLS.lock();
         let value = value.as_ref();
         if let Some(s) = symbols.get(value).cloned() {
-            if s.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) > 0 {
+            if s.header()
+                .ref_count
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                > 0
+            {
                 return Symbol(s);
             }
         }
@@ -160,14 +163,23 @@ impl Symbol {
 
     #[cfg(test)]
     fn ref_count(&self) -> usize {
-        self.0.header().ref_count.load(std::sync::atomic::Ordering::SeqCst)
+        self.0
+            .header()
+            .ref_count
+            .load(std::sync::atomic::Ordering::SeqCst)
     }
 }
 
 impl Drop for Symbol {
     #[inline(always)]
     fn drop(&mut self) {
-        if self.0.header().ref_count.fetch_sub(1, std::sync::atomic::Ordering::Release) != 1 {
+        if self
+            .0
+            .header()
+            .ref_count
+            .fetch_sub(1, std::sync::atomic::Ordering::Release)
+            != 1
+        {
             return;
         }
 
@@ -180,7 +192,10 @@ impl Drop for Symbol {
 impl Clone for Symbol {
     #[inline(always)]
     fn clone(&self) -> Self {
-        self.0.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.0
+            .header()
+            .ref_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Symbol(self.0)
     }
 }
@@ -344,13 +359,19 @@ impl heapsize::HeapSizeOf for Symbol {
 }
 
 impl serde::Serialize for Symbol {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
         self.as_ref().serialize(serializer)
     }
 }
 
 impl<'de> serde::Deserialize<'de> for Symbol {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
         Ok(Symbol::from(String::deserialize(deserializer)?))
     }
 }
@@ -358,7 +379,6 @@ impl<'de> serde::Deserialize<'de> for Symbol {
 unsafe impl Send for Symbol {}
 
 unsafe impl Sync for Symbol {}
-
 
 #[cfg(test)]
 mod tests {
@@ -484,15 +504,18 @@ mod tests {
     #[test]
     fn symbol_sizeof_is_equal_to_pointer() {
         // can be run in parallel
-        assert_eq!(std::mem::size_of::<Symbol>(), std::mem::size_of::<*const ()>());
+        assert_eq!(
+            std::mem::size_of::<Symbol>(),
+            std::mem::size_of::<*const ()>()
+        );
     }
 
     #[test]
     fn optional_symbol_sizeof_is_equal_to_pointer() {
         // can be run in parallel
-        assert_eq!(std::mem::size_of::<Option<Symbol>>(), std::mem::size_of::<*const ()>());
+        assert_eq!(
+            std::mem::size_of::<Option<Symbol>>(),
+            std::mem::size_of::<*const ()>()
+        );
     }
 }
-
-
-
