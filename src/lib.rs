@@ -2,12 +2,6 @@
 
 #[macro_use]
 extern crate lazy_static;
-extern crate heapsize;
-extern crate serde;
-extern crate parking_lot;
-
-#[cfg(test)]
-extern crate serde_json;
 
 use std::cmp::Ordering;
 use std::ops::Deref;
