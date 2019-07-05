@@ -1,6 +1,6 @@
 [package]
 name = "kg-symbol"
-version = "0.1.9"
+version = "0.1.10"
 authors = ["Jakub Chłapiński <jakub.chlapinski@kodegenix.pl>"]
 description = """
 Atomic strings in Rust.
@@ -16,7 +16,7 @@ edition = "2018"
 lazy_static = "1.3.0"
 parking_lot = { version = "0.8.0", features = ["nightly"] }
 heapsize = "0.4.2"
-serde = "1.0.91"
+serde = "1.0.94"
 
 [dev-dependencies]
-serde_json = "1.0.39"
+serde_json = "1.0.40"
