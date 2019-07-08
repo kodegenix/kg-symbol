@@ -3,16 +3,16 @@
 #[macro_use]
 extern crate lazy_static;
 
+use std::alloc::{Alloc, Global, handle_alloc_error, Layout};
+use std::borrow::{Borrow, Cow};
 use std::cmp::Ordering;
-use std::ops::Deref;
-use std::borrow::{Cow, Borrow};
-use std::ptr::NonNull;
-use std::alloc::{Layout, Alloc, Global, handle_alloc_error};
 use std::collections::HashSet;
-use std::sync::atomic::AtomicUsize;
 use std::hash::{Hash, Hasher};
-use parking_lot::Mutex;
+use std::ops::Deref;
+use std::ptr::NonNull;
+use std::sync::atomic::AtomicUsize;
 
+use parking_lot::Mutex;
 
 lazy_static!{
     static ref SYMBOLS: Mutex<HashSet<SymbolPtr>> = {
@@ -356,8 +356,9 @@ unsafe impl Sync for Symbol {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use parking_lot::{Mutex, MutexGuard};
+
+    use super::*;
 
     // Some tests must be run consecutively (not in parallel), so we need to lock() before each test
     static LOCK: Mutex<()> = Mutex::new(());
