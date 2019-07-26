@@ -10,6 +10,18 @@ Atomic strings in Rust.
 This crate provides a `Symbol` type representing reference to an interned string. 
 Since there can only exist one Symbol with a given name, symbols equality can be established simply from pointer comparison.
 
+## Builds statuses for Rust channels
+
+| stable            | beta              | nightly           |
+|-------------------|-------------------|-------------------|
+| [![Build1][3]][4] | [![Build2][2]][4] | [![Build3][1]][4] |
+
+[1]: https://travis-matrix-badges.herokuapp.com/repos/kodegenix/kg-symbol/branches/master/1
+[2]: https://travis-matrix-badges.herokuapp.com/repos/kodegenix/kg-symbol/branches/master/2
+[3]: https://travis-matrix-badges.herokuapp.com/repos/kodegenix/kg-symbol/branches/master/3
+[4]: https://travis-ci.org/kodegenix/kg-symbol
+
+
 ## License
 
 Licensed under either of
