@@ -3,7 +3,7 @@
 [![Latest Version](https://img.shields.io/crates/v/kg-symbol.svg)](https://crates.io/crates/kg-symbol)
 [![Documentation](https://docs.rs/kg-symbol/badge.svg)](https://docs.rs/kg-symbol)
 [![Build Status](https://travis-ci.org/Kodegenix/kg-symbol.svg?branch=master)](https://travis-ci.org/Kodegenix/kg-symbol)
-[![Coverage Status](https://coveralls.io/repos/github/Kodegenix/kg-symbol/badge.svg?branch=master)](https://coveralls.io/github/Kodegenix/kg-symbol?branch=master)
+[![codecov](https://codecov.io/gh/kodegenix/kg-symbol/branch/master/graph/badge.svg)](https://codecov.io/gh/kodegenix/kg-symbol)
 
 Atomic strings in Rust.
 
