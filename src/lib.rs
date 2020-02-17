@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::alloc::{Alloc, Global, handle_alloc_error, Layout};
+use std::alloc::{AllocRef, Global, Layout, handle_alloc_error};
 use std::borrow::{Borrow, Cow};
 use std::cmp::Ordering;
 use std::collections::HashSet;
