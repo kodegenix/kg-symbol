@@ -14,9 +14,9 @@ edition = "2018"
 
 [dependencies]
 lazy_static = "1.4.0"
-parking_lot = { version = "0.9.0", features = ["nightly"] }
+parking_lot = { version = "0.10.0", features = ["nightly"] }
 heapsize = "0.4.2"
-serde = "1.0.102"
+serde = "1.0.104"
 
 [dev-dependencies]
-serde_json = "1.0.41"
+serde_json = "1.0.44"
