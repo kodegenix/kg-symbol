@@ -128,7 +128,7 @@ pub struct Symbol(SymbolPtr);
 impl Symbol {
     #[inline(never)]
     pub fn get<S: AsRef<str>>(value: S) -> Option<Symbol> {
-        let mut symbols = SYMBOLS.lock();
+        let symbols = SYMBOLS.lock();
         let value = value.as_ref();
         if let Some(s) = symbols.get(value).cloned() {
             if s.header().ref_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed) > 0 {
