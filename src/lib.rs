@@ -1,9 +1,9 @@
-#![feature(integer_atomics, allocator_api, alloc_layout_extra)]
+#![feature(integer_atomics, allocator_api, alloc_layout_extra, slice_ptr_get)]
 
 #[macro_use]
 extern crate lazy_static;
 
-use std::alloc::{AllocRef, Global, Layout,AllocInit, handle_alloc_error};
+use std::alloc::{AllocRef, Global, Layout, handle_alloc_error};
 use std::borrow::{Borrow, Cow};
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -53,16 +53,16 @@ impl SymbolPtr {
     fn alloc(value: &str, persistent: bool) -> SymbolPtr {
         let (layout, offset) = layout_offset(value.len());
         let p = unsafe {
-            let data = Global.alloc(layout, AllocInit::Uninitialized).unwrap_or_else(|_| handle_alloc_error(layout));
-            let str_ptr = data.ptr.as_ptr().offset(offset as isize);
-            let hdr_ptr = std::mem::transmute::<NonNull<u8>, &mut Header>(data.ptr);
+            let data = Global.alloc(layout).unwrap_or_else(|_| handle_alloc_error(layout));
+            let str_ptr = data.as_non_null_ptr().as_ptr().offset(offset as isize);
+            let hdr_ptr = std::mem::transmute::<NonNull<u8>, &mut Header>(data.as_non_null_ptr());
             *hdr_ptr = Header {
                 ref_count: AtomicUsize::new(if persistent { 2 } else { 1 }),
                 ptr: NonNull::new_unchecked(str_ptr),
                 len: value.len(),
             };
             std::ptr::copy_nonoverlapping(value.as_ptr(), str_ptr, value.len());
-            data.ptr
+            data.as_non_null_ptr()
         };
         SymbolPtr(p)
     }
