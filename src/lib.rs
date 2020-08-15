@@ -14,6 +14,10 @@ use std::sync::atomic::AtomicUsize;
 
 use parking_lot::Mutex;
 
+mod map;
+
+pub use self::map::*;
+
 lazy_static!{
     static ref SYMBOLS: Mutex<HashSet<SymbolPtr>> = {
         let mut set = HashSet::new();
