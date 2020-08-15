@@ -314,18 +314,18 @@ mod tests {
     use parking_lot::{Mutex, MutexGuard};
     use super::*;
 
-    // Some tests must be run consecutively (not in parallel), so we need to lock() before each test
-    static LOCK: Mutex<()> = Mutex::new(());
+    // Some tests must be run consecutively (not in parallel), so we need to test_lock() before each test
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
 
-    pub(crate) fn lock<'a>() -> MutexGuard<'a, ()> {
-        let lock = LOCK.lock();
+    pub(crate) fn test_lock<'a>() -> MutexGuard<'a, ()> {
+        let lock = TEST_LOCK.lock();
         debug_assert_eq!(SYMBOLS.lock().len(), 1);
         lock
     }
 
     #[test]
     fn ptr_equality() {
-        let _lock = lock();
+        let _lock = test_lock();
 
         let s1 = Symbol::from("aaa");
         let s2 = Symbol::from("aaa");
@@ -339,7 +339,7 @@ mod tests {
 
     #[test]
     fn symbols_are_dropped() {
-        let _lock = lock();
+        let _lock = test_lock();
 
         {
             let _s1 = Symbol::from("aaa");
@@ -355,7 +355,7 @@ mod tests {
 
     #[test]
     fn symbol_keys_in_maps() {
-        let _lock = lock();
+        let _lock = test_lock();
 
         use std::collections::HashMap;
 
@@ -373,7 +373,7 @@ mod tests {
 
     #[test]
     fn serialize() {
-        let _lock = lock();
+        let _lock = test_lock();
 
         let s = Symbol::from("example");
         let json = serde_json::to_string_pretty(&s).unwrap();
@@ -382,7 +382,7 @@ mod tests {
 
     #[test]
     fn deserialize() {
-        let _lock = lock();
+        let _lock = test_lock();
 
         let json = "\"example\"";
         let s: Symbol = serde_json::from_str(json).unwrap();
@@ -391,7 +391,7 @@ mod tests {
 
     #[test]
     fn symbol_is_sync() {
-        let _lock = lock();
+        let _lock = test_lock();
 
         fn test<T: Sync>(_: T) {}
 
@@ -400,7 +400,7 @@ mod tests {
 
     #[test]
     fn symbol_is_send() {
-        let _lock = lock();
+        let _lock = test_lock();
 
         fn test<T: Send>(_: T) {}
 
@@ -411,7 +411,7 @@ mod tests {
     fn symbol_hash_eq_str_hash() {
         use std::collections::hash_map::DefaultHasher;
 
-        let _lock = lock();
+        let _lock = test_lock();
 
         let s1 = "example string";
         let h1 = {

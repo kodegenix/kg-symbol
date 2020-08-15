@@ -114,9 +114,10 @@ impl<V> SymbolMap<V> {
         if let Some(s) = Symbol::get(k) {
             match self.map.as_mut() {
                 Some(m) => {
-                    match m.remove(&s) {
-                        Some(i) => {
+                    match m.get(&s) {
+                        Some(&i) => {
                             let e = self.items.remove(i);
+                            self.rebuild_map();
                             Some(e.1)
                         }
                         None => None,
@@ -360,11 +361,11 @@ impl<'a, V: 'a> FusedIterator for ValuesMut<'a, V> { }
 #[cfg(test)]
 mod tests {
     use crate::*;
-    use crate::tests::lock;
+    use crate::tests::test_lock;
 
     #[test]
     fn small_map_smoke_test() {
-        let _lock = lock();
+        let _lock = test_lock();
 
         let mut m = SymbolMap::new();
 
