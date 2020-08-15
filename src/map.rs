@@ -93,10 +93,17 @@ impl<V> SymbolMap<V> {
 
     #[inline]
     fn rebuild_map(&mut self) {
-        if let Some(m) = &mut self.map {
-            m.clear();
-            for (i, e) in self.items.iter().enumerate() {
-                m.insert(e.0.clone(), i);
+        if self.items.len() <= SMALL_MAP_SIZE {
+            self.map = None;
+        } else {
+            if self.map.is_none() {
+                self.map = Some(HashMap::with_capacity(self.items.capacity()));
+            }
+            if let Some(m) = &mut self.map {
+                m.clear();
+                for (i, e) in self.items.iter().enumerate() {
+                    m.insert(e.0.clone(), i);
+                }
             }
         }
     }
@@ -131,9 +138,6 @@ impl<V> SymbolMap<V> {
 
     pub fn remove_at(&mut self, index: usize) -> Option<V> {
         let old = self.items.remove(index);
-        if self.items.len() < SMALL_MAP_SIZE {
-            self.map = None;
-        }
         self.rebuild_map();
         Some(old.1)
     }
@@ -180,9 +184,6 @@ impl<V> SymbolMap<V> {
     pub fn insert_at(&mut self, index: usize, k: Symbol, v: V) -> Option<V> {
         let old = self.remove(&k);
         self.items.insert(index, (k, v));
-        if self.items.len() >= SMALL_MAP_SIZE && self.map.is_none() {
-            self.map = Some(HashMap::with_capacity(self.items.len()));
-        }
         self.rebuild_map();
         old
     }
