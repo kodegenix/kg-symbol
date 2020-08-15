@@ -11,7 +11,7 @@ const SMALL_MAP_SIZE: usize = 8;
 
 pub struct SymbolMap<V> {
     items: Vec<(Symbol, V)>,
-    map: Option<HashMap<Symbol, usize>>
+    map: Option<Box<HashMap<Symbol, usize>>>
 }
 
 impl<V> SymbolMap<V> {
@@ -26,7 +26,7 @@ impl<V> SymbolMap<V> {
         SymbolMap {
             items: Vec::with_capacity(capacity),
             map: if capacity > SMALL_MAP_SIZE {
-                Some(HashMap::with_capacity(capacity))
+                Some(Box::new(HashMap::with_capacity(capacity)))
             } else {
                 None
             }
@@ -97,9 +97,9 @@ impl<V> SymbolMap<V> {
             self.map = None;
         } else {
             if self.map.is_none() {
-                self.map = Some(HashMap::with_capacity(self.items.capacity()));
+                self.map = Some(Box::new(HashMap::with_capacity(self.items.capacity())));
             }
-            if let Some(m) = &mut self.map {
+            if let Some(m) = self.map.as_mut() {
                 m.clear();
                 for (i, e) in self.items.iter().enumerate() {
                     m.insert(e.0.clone(), i);
@@ -169,13 +169,7 @@ impl<V> SymbolMap<V> {
                     }
                 }
                 self.items.push((k, v));
-                if self.items.len() >= SMALL_MAP_SIZE && self.map.is_none() {
-                    let mut map = HashMap::with_capacity(self.items.len());
-                    for (i, e) in self.items.iter().enumerate() {
-                        map.insert(e.0.clone(), i);
-                    }
-                    self.map = Some(map)
-                }
+                self.rebuild_map();
                 None
             }
         }
@@ -365,28 +359,22 @@ impl<'a, V: 'a> FusedIterator for ValuesMut<'a, V> { }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::*;
+    use crate::tests::lock;
 
     #[test]
-    fn small_map() {
+    fn small_map_smoke_test() {
+        let _lock = lock();
+
         let mut m = SymbolMap::new();
 
         m.insert("key1".into(), "v1");
         m.insert("key2".into(), "v2");
         m.insert("key1".into(), "v3");
 
-        println!("{:?}", m);
-        println!("{:?}", m.items);
-        println!("{:?}", m.map);
-
-        m.insert("key3".into(), "v3");
-        m.insert("key4".into(), "v4");
-        m.insert("key5".into(), "v5");
-
-        println!("{:?}", m);
-        println!("{:?}", m.items);
-        println!("{:?}", m.map);
-        println!("{:?}", m.contains_key("key8"));
-
+        assert_eq!(m.len(), 2);
+        assert_eq!(m.get("key1"), Some(&"v3"));
+        assert_eq!(m.get("key4"), None);
+        assert_eq!(SYMBOLS.lock().len(), 3);
     }
 }
