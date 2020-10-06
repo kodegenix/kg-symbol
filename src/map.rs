@@ -91,7 +91,6 @@ impl<V> SymbolMap<V> {
         }
     }
 
-    #[inline]
     fn rebuild_map(&mut self) {
         if self.items.len() <= SMALL_MAP_SIZE {
             self.map = None;
