@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::alloc::{AllocRef, Global, Layout, handle_alloc_error};
+use std::alloc::{Allocator, Global, Layout, handle_alloc_error};
 use std::borrow::{Borrow, Cow};
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -77,7 +77,7 @@ impl Symbol {
     fn alloc(value: &str, persistent: bool) -> Symbol {
         let (layout, offset) = layout_offset(value.len());
         let p = unsafe {
-            let data = Global.alloc(layout).unwrap_or_else(|_| handle_alloc_error(layout));
+            let data = Global.allocate(layout).unwrap_or_else(|_| handle_alloc_error(layout));
             let str_ptr = data.as_non_null_ptr().as_ptr().offset(offset as isize);
             let hdr_ptr = std::mem::transmute::<NonNull<u8>, &mut SymbolHdr>(data.as_non_null_ptr());
             *hdr_ptr = SymbolHdr {
@@ -98,7 +98,7 @@ impl Symbol {
 
         let (layout, _) = layout_offset(self.header().len);
         unsafe {
-            Global.dealloc(self.0, layout);
+            Global.deallocate(self.0, layout);
         }
     }
 
